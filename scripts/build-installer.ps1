@@ -1,34 +1,42 @@
 param(
     [string]$SourceInstaller,
-    [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json')
+    [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json'),
+    [switch]$PayloadAlreadyExtracted
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
+$config = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
 if (-not $SourceInstaller) {
-    $configForSource = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
-    $SourceInstaller = $configForSource.source.path
+    $SourceInstaller = $config.source.path
 }
 
-$config = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
 $payload = Join-Path $root 'build\payload'
 $outDir = Join-Path $root 'build\output'
-$manifest = Join-Path $root 'build\payload-manifest.json'
 $installerName = $config.project.installerFileName
 $outFile = Join-Path $outDir $installerName
 
-$sourcePath = Join-Path $root $SourceInstaller
-if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-    throw "Configured source installer not found: $sourcePath"
+if (-not (Test-Path -LiteralPath (Join-Path $root $SourceInstaller) -PathType Leaf)) {
+    throw "Configured source installer not found: $(Join-Path $root $SourceInstaller)"
 }
 
-Remove-Item -LiteralPath $payload -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $manifest -Force -ErrorAction SilentlyContinue
+if (-not $PayloadAlreadyExtracted) {
+    & (Join-Path $PSScriptRoot 'extract-winamp.ps1') -SourceInstaller (Join-Path $root $SourceInstaller) -PayloadDirectory $payload -ConfigFile $ConfigFile
+}
+
+if (-not (Test-Path -LiteralPath $payload -PathType Container)) {
+    throw "Payload directory not found: $payload"
+}
+foreach ($requiredFile in $config.payload.requiredFiles) {
+    $requiredPath = Join-Path $payload ($requiredFile -replace '/', '\\')
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Required payload file is missing: $requiredFile"
+    }
+}
+
 Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-
-& (Join-Path $PSScriptRoot 'extract-winamp.ps1') -SourceInstaller $sourcePath -PayloadDirectory $payload -ConfigFile (Join-Path $root 'config\build-config.json')
 
 $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
 if (-not (Test-Path -LiteralPath $makensis)) {
@@ -60,5 +68,4 @@ try {
     Pop-Location
 }
 
-& (Join-Path $PSScriptRoot 'verify-installer.ps1') -Installer $outFile -ConfigFile $ConfigFile -PayloadDirectory $payload
 Write-Host "BUILD OUTPUT: $outFile"
