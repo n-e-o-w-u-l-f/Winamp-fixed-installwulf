@@ -14,7 +14,7 @@ Push-Location $root
 try {
     & $makensis '/V4' 'installer\Install-Wulf.nsi'
     if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
-    $built = Join-Path $root 'Winamp_InstallWulf-fixed.exe'
+    $built = Join-Path $root 'installer\Winamp_InstallWulf-fixed.exe'
     if (-not (Test-Path $built)) { throw 'Expected NSIS output was not created.' }
     Move-Item $built (Join-Path $outDir 'Winamp_InstallWulf-fixed.exe') -Force
 } finally { Pop-Location }
