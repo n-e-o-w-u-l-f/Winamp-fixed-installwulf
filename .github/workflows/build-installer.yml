@@ -2,6 +2,8 @@ name: Build Install-Wulf
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'winamp/winamp_latest_installer.exe'
       - 'installer/**'
