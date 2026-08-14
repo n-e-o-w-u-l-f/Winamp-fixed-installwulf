@@ -15,7 +15,7 @@ if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) {
 
 $config = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
 $source = Get-Item -LiteralPath $SourceInstaller
-$buildDirectory = Split-Path -Parent (Resolve-Path -LiteralPath $PayloadDirectory)
+$buildDirectory = Join-Path (Split-Path -Parent $PSScriptRoot) 'build'
 
 Write-Host "Source installer: $($source.FullName)"
 Write-Host "Source size: $($source.Length) bytes"
@@ -25,8 +25,8 @@ if ([int64]$source.Length -ne [int64]$config.source.sizeBytes) {
 
 $sourceHash = (Get-FileHash -LiteralPath $SourceInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Source SHA256: $sourceHash"
-$sourceHashPath = Join-Path $buildDirectory 'source-sha256.txt'
 New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
+$sourceHashPath = Join-Path $buildDirectory 'source-sha256.txt'
 "$sourceHash  $($source.Name)" | Set-Content -LiteralPath $sourceHashPath -Encoding ascii
 if ($config.source.expectedSha256) {
     if ($sourceHash -ne $config.source.expectedSha256.ToLowerInvariant()) {
