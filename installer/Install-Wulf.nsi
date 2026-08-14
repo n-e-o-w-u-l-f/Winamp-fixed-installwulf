@@ -14,7 +14,7 @@ VIAddVersionKey /LANG=1033 "FileDescription" "Winamp Install-Wulf Installer"
 Section "Winamp" SEC01
   SectionIn RO
   SetOutPath "$INSTDIR"
-  File /r "build\payload\*"
+  File /r "..\build\payload\*"
 
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Install-Wulf" "DisplayName" "Install-Wulf (Winamp)"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Install-Wulf" "DisplayVersion" "1,33,7a"
