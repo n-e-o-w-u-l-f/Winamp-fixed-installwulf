@@ -11,13 +11,21 @@ on:
       - 'config/**'
       - 'tests/**'
       - '.github/workflows/build-installer.yml'
+  pull_request:
+    paths:
+      - 'winamp/winamp_latest_installer.exe'
+      - 'installer/**'
+      - 'scripts/**'
+      - 'config/**'
+      - 'tests/**'
+      - '.github/workflows/build-installer.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: install-wulf-build
+  group: install-wulf-build-${{ github.ref }}
   cancel-in-progress: true
 
 env:
