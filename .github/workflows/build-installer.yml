@@ -8,52 +8,122 @@ on:
       - 'winamp/winamp_latest_installer.exe'
       - 'installer/**'
       - 'scripts/**'
+      - 'config/**'
       - '.github/workflows/build-installer.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: install-wulf-build
+  cancel-in-progress: true
+
+env:
+  NSIS_VERSION: '3.12'
+  SEVENZIP_VERSION: '26.02'
+
 jobs:
   build:
-    runs-on: windows-2022
+    name: Windows installer build
+    runs-on: windows-2025
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Source validation - checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
-      - name: Install official NSIS 3.12
+      - name: Source validation - read central configuration
         shell: powershell
         run: |
-          $url = 'https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/nsis-3.12-setup.exe/download'
+          $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
+          if ($config.toolchain.nsis.version -ne $env:NSIS_VERSION) { throw 'NSIS version drift between workflow and build-config.json.' }
+          if ($config.toolchain.sevenZip.version -ne $env:SEVENZIP_VERSION) { throw '7-Zip version drift between workflow and build-config.json.' }
+          Write-Host "Installer version: $($config.installerVersion.fileVersion)"
+          Write-Host "Display version: $($config.installerVersion.displayVersion)"
+          Write-Host "Source path: $($config.source.path)"
+          Write-Host "Source Git blob SHA-1: $($config.source.gitBlobSha1)"
+          Write-Host "Source size: $($config.source.sizeBytes) bytes"
+
+      - name: Toolchain setup - download NSIS 3.12
+        shell: powershell
+        run: |
+          $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           $setup = Join-Path $env:RUNNER_TEMP 'nsis-3.12-setup.exe'
-          Invoke-WebRequest -Uri $url -OutFile $setup
+          Invoke-WebRequest -Uri $config.toolchain.nsis.url -OutFile $setup
+          $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
+          $expected = $config.toolchain.nsis.sha256.ToUpperInvariant()
+          Write-Host "NSIS SHA256: $actual"
+          if ($actual -ne $expected) { throw "NSIS SHA256 mismatch. Expected $expected, got $actual." }
           $p = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "NSIS setup failed: $($p.ExitCode)" }
           $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
           if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed.' }
-          & $makensis /VERSION
+          $version = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
+          if ($version -ne $env:NSIS_VERSION) { throw "NSIS version mismatch. Expected $env:NSIS_VERSION, got $version." }
+          Write-Host "NSIS: $version"
 
-      - name: Install 7-Zip
+      - name: Toolchain setup - download 7-Zip 26.02
         shell: powershell
-        run: choco install 7zip -y --no-progress
+        run: |
+          $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
+          $setup = Join-Path $env:RUNNER_TEMP '7z2602-x64.exe'
+          Invoke-WebRequest -Uri $config.toolchain.sevenZip.url -OutFile $setup
+          $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
+          $expected = $config.toolchain.sevenZip.sha256.ToUpperInvariant()
+          Write-Host "7-Zip installer SHA256: $actual"
+          if ($actual -ne $expected) { throw "7-Zip SHA256 mismatch. Expected $expected, got $actual." }
+          $p = Start-Process -FilePath $setup -ArgumentList '/S','/D=C:\Program Files\7-Zip' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "7-Zip setup failed: $($p.ExitCode)" }
+          $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
+          if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 7z.exe was not installed.' }
+          $versionLine = & $sevenZip i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
+          if (-not $versionLine -or $versionLine.Line -notmatch [regex]::Escape($env:SEVENZIP_VERSION)) {
+            throw "7-Zip version mismatch. Expected $env:SEVENZIP_VERSION."
+          }
+          Write-Host "7-Zip: $($versionLine.Line.Trim())"
 
-      - name: Build and validate installer
+      - name: Payload extraction
         shell: powershell
-        run: .\scripts\build-installer.ps1
+        run: |
+          $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
+          & '.\scripts\extract-winamp.ps1' -SourceInstaller $config.source.path -PayloadDirectory '.\build\payload' -ConfigFile '.\config\build-config.json'
 
-      - name: Generate SHA-256 checksum
+      - name: Payload validation
+        shell: powershell
+        run: |
+          if (-not (Test-Path -LiteralPath '.\build\payload-manifest.json' -PathType Leaf)) { throw 'Payload manifest was not generated.' }
+          if (-not (Test-Path -LiteralPath '.\build\source-sha256.txt' -PathType Leaf)) { throw 'Source SHA-256 record was not generated.' }
+          Get-Content -LiteralPath '.\build\source-sha256.txt'
+          Get-Content -LiteralPath '.\build\payload-manifest.json' | Select-Object -First 20
+
+      - name: Installer build
+        shell: powershell
+        run: |
+          & '.\scripts\build-installer.ps1' -ConfigFile '.\config\build-config.json' -PayloadAlreadyExtracted
+
+      - name: Installer validation
+        shell: powershell
+        run: |
+          & '.\scripts\verify-installer.ps1' -Installer '.\build\output\Winamp_InstallWulf-fixed.exe' -ConfigFile '.\config\build-config.json' -PayloadDirectory '.\build\payload'
+
+      - name: SHA-256
         shell: powershell
         run: |
           $file = '.\build\output\Winamp_InstallWulf-fixed.exe'
-          $hash = Get-FileHash $file -Algorithm SHA256
-          "$($hash.Hash)  Winamp_InstallWulf-fixed.exe" | Out-File '.\build\output\SHA256SUMS.txt' -Encoding ascii
-          Write-Host "SHA256: $($hash.Hash)"
+          $hash = Get-FileHash -LiteralPath $file -Algorithm SHA256
+          "$($hash.Hash.ToLowerInvariant())  Winamp_InstallWulf-fixed.exe" | Set-Content -LiteralPath '.\build\output\SHA256SUMS.txt' -Encoding ascii
+          Write-Host "Installer SHA256: $($hash.Hash)"
 
-      - name: Upload installer and checksum
-        uses: actions/upload-artifact@v4
+      - name: Artifact upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Winamp-InstallWulf-fixed
           path: |
             build/output/Winamp_InstallWulf-fixed.exe
             build/output/SHA256SUMS.txt
+            build/output/BUILD-METADATA.json
+            build/payload-manifest.json
+            build/source-sha256.txt
           if-no-files-found: error
