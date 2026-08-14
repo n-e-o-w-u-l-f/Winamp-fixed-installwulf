@@ -5,12 +5,13 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $SourceInstaller)) { throw "Source installer not found: $SourceInstaller" }
 $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
-if (-not $sevenZip -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $sevenZip = Get-Item 'C:\Program Files\7-Zip\7z.exe' }
-if (-not $sevenZip -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZip = Get-Item 'C:\Program Files (x86)\7-Zip\7z.exe' }
-if (-not $sevenZip) { throw '7z.exe is required on the build runner.' }
+if ($sevenZip) { $sevenZipPath = $sevenZip.Source }
+if (-not $sevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files\7-Zip\7z.exe' }
+if (-not $sevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
+if (-not $sevenZipPath) { throw '7z.exe is required on the build runner.' }
 Remove-Item -LiteralPath $PayloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $PayloadDirectory -Force | Out-Null
-& $sevenZip.Source x $SourceInstaller "-o$PayloadDirectory" -y
+& $sevenZipPath x $SourceInstaller "-o$PayloadDirectory" -y
 if ($LASTEXITCODE -ne 0) { throw "7-Zip extraction failed with exit code $LASTEXITCODE" }
 $winamp = Join-Path $PayloadDirectory 'winamp.exe'
 if (-not (Test-Path -LiteralPath $winamp)) { throw 'Expected winamp.exe was not found in extracted payload.' }
