@@ -19,9 +19,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install NSIS 3.12
+      - name: Install official NSIS 3.12
         shell: powershell
-        run: choco install nsis --version=3.12 -y --no-progress
+        run: |
+          $url = 'https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/nsis-3.12-setup.exe/download'
+          $setup = Join-Path $env:RUNNER_TEMP 'nsis-3.12-setup.exe'
+          Invoke-WebRequest -Uri $url -OutFile $setup
+          $p = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "NSIS setup failed: $($p.ExitCode)" }
+          $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
+          if (-not (Test-Path $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed.' }
+          & $makensis /VERSION
 
       - name: Install 7-Zip
         shell: powershell
@@ -41,4 +49,13 @@ jobs:
       - name: Generate SHA-256
         shell: powershell
         run: |
-          Get-FileHash .\build\output\Winamp_InstallWulf-fixed.exe -Algorithm SHA256 | Format-List
+          $hash = Get-FileHash .\build\output\Winamp_InstallWulf-fixed.exe -Algorithm SHA256
+          $hash | Format-List
+          "$($hash.Hash)  Winamp_InstallWulf-fixed.exe" | Out-File .\build\output\SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winamp-InstallWulf-fixed-checksum
+          path: build/output/SHA256SUMS.txt
+          if-no-files-found: error
