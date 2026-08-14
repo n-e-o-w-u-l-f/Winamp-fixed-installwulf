@@ -15,6 +15,11 @@
     "expectedSha256": null,
     "requireExpectedSha256ForRelease": true
   },
+  "payload": {
+    "requiredFiles": [
+      "winamp.exe"
+    ]
+  },
   "toolchain": {
     "nsis": {
       "version": "3.12",
