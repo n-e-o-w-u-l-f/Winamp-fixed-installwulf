@@ -1,0 +1,44 @@
+name: Build Install-Wulf
+
+on:
+  push:
+    paths:
+      - 'winamp/winamp_latest_installer.exe'
+      - 'installer/**'
+      - 'scripts/**'
+      - '.github/workflows/build-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install NSIS 3.12
+        shell: powershell
+        run: choco install nsis --version=3.12 -y --no-progress
+
+      - name: Install 7-Zip
+        shell: powershell
+        run: choco install 7zip -y --no-progress
+
+      - name: Build installer
+        shell: powershell
+        run: .\scripts\build-installer.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winamp-InstallWulf-fixed
+          path: build/output/Winamp_InstallWulf-fixed.exe
+          if-no-files-found: error
+
+      - name: Generate SHA-256
+        shell: powershell
+        run: |
+          Get-FileHash .\build\output\Winamp_InstallWulf-fixed.exe -Algorithm SHA256 | Format-List
