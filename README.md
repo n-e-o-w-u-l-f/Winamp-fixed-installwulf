@@ -150,12 +150,14 @@ Redistribution of the Winamp payload is a separate legal question from the licen
 
 ## Release policy
 
-A successful CI artifact is not automatically a release. A release should only be promoted after:
+A successful CI artifact is not automatically a release. The separate `.github/workflows/release-promotion.yml` workflow provides the promotion gate. It accepts only a successful `Build Install-Wulf` run from `main`, downloads that exact artifact, requires `source.expectedSha256` to be pinned, verifies the published installer checksum, validates the release tag format, and only then creates a GitHub Release.
+
+A release therefore requires:
 
 1. the complete Windows build passes;
 2. the source SHA-256 is pinned in `config/build-config.json`;
 3. the payload and installer metadata have been inspected;
-4. the artifact checksum has been recorded;
+4. the artifact checksum has been recorded and verified;
 5. the applicable Winamp redistribution rights have been confirmed.
 
 ## Security principles
