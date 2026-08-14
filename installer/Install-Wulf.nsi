@@ -25,8 +25,12 @@ Section "Winamp" SEC01
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 
+Function un.onInit
+  MessageBox MB_ICONQUESTION|MB_YESNO "Uninstall Install-Wulf and remove the Winamp installation?" IDYES +2
+  Abort
+FunctionEnd
+
 Section "Uninstall"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Install-Wulf"
-  Delete "$INSTDIR\Uninstall.exe"
   RMDir /r "$INSTDIR"
 SectionEnd
