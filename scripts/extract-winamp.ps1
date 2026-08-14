@@ -15,6 +15,7 @@ if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) {
 
 $config = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
 $source = Get-Item -LiteralPath $SourceInstaller
+$buildDirectory = Split-Path -Parent (Resolve-Path -LiteralPath $PayloadDirectory)
 
 Write-Host "Source installer: $($source.FullName)"
 Write-Host "Source size: $($source.Length) bytes"
@@ -24,6 +25,9 @@ if ([int64]$source.Length -ne [int64]$config.source.sizeBytes) {
 
 $sourceHash = (Get-FileHash -LiteralPath $SourceInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Source SHA256: $sourceHash"
+$sourceHashPath = Join-Path $buildDirectory 'source-sha256.txt'
+New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
+"$sourceHash  $($source.Name)" | Set-Content -LiteralPath $sourceHashPath -Encoding ascii
 if ($config.source.expectedSha256) {
     if ($sourceHash -ne $config.source.expectedSha256.ToLowerInvariant()) {
         throw "Source SHA256 mismatch. Expected $($config.source.expectedSha256), got $sourceHash."
@@ -40,8 +44,9 @@ if (-not $sevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $seve
 if (-not $sevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
 if (-not $sevenZipPath) { throw '7z.exe is required on the build runner.' }
 
-$sevenZipVersion = (& $sevenZipPath i 2>&1 | Select-String -Pattern '^7-Zip \d' | Select-Object -First 1).ToString()
-Write-Host "7-Zip: $sevenZipVersion"
+$sevenZipInfo = & $sevenZipPath i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
+if (-not $sevenZipInfo) { throw 'Unable to determine 7-Zip version.' }
+Write-Host "7-Zip: $($sevenZipInfo.Line.Trim())"
 
 & $sevenZipPath t $SourceInstaller -y | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Source installer archive test failed: $LASTEXITCODE" }
@@ -74,4 +79,4 @@ if ($signature.SignerCertificate) {
     Write-Host "Payload signer thumbprint: $($signature.SignerCertificate.Thumbprint)"
 }
 
-& (Join-Path $PSScriptRoot 'new-payload-manifest.ps1') -PayloadDirectory $PayloadDirectory -OutputFile (Join-Path (Split-Path $PayloadDirectory -Parent) 'payload-manifest.json')
+& (Join-Path $PSScriptRoot 'new-payload-manifest.ps1') -PayloadDirectory $PayloadDirectory -OutputFile (Join-Path $buildDirectory 'payload-manifest.json')
