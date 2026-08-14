@@ -1,0 +1,22 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Build output
+build/
+dist/
+artifacts/
+*.log
+
+# Local extraction/test directories
+winamp_analysis/
+
+# Editors
+.vscode/
+.idea/
+
+# Secrets
+*.pfx
+*.p12
+*.pem
+*.key
