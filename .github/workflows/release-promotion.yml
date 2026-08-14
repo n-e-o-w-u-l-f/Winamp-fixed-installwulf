@@ -1,0 +1,109 @@
+name: Promote validated Install-Wulf artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Successful Build Install-Wulf workflow run ID on main'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag, e.g. install-wulf-1.33.7.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    name: Promote validated artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Validate build run and source gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
+          python - <<'PY' "$run_json"
+          import json, sys
+          run = json.loads(sys.argv[1])
+          if run.get("name") != "Build Install-Wulf":
+              raise SystemExit("Selected run is not the Install-Wulf build workflow.")
+          if run.get("event") != "push" or run.get("head_branch") != "main":
+              raise SystemExit("Release promotion requires a push build from main.")
+          if run.get("status") != "completed" or run.get("conclusion") != "success":
+              raise SystemExit("Selected build run is not successful.")
+          print(f"Validated build run: {run['id']} @ {run['head_sha']}")
+          PY
+
+      - name: Download validated artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifact
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name Winamp-InstallWulf-fixed --dir release-artifact
+          test -s release-artifact/Winamp_InstallWulf-fixed.exe
+          test -s release-artifact/SHA256SUMS.txt
+          test -s release-artifact/BUILD-METADATA.json
+
+      - name: Enforce source reproducibility gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('release-artifact/BUILD-METADATA.json').read_text(encoding='utf-8-sig'))
+          expected = metadata['source'].get('expectedSha256')
+          actual = metadata['source'].get('gitBlobSha1')
+          if not expected or expected == 'null':
+              raise SystemExit('Release blocked: source.expectedSha256 is not pinned.')
+          if len(expected) != 64:
+              raise SystemExit('Release blocked: source.expectedSha256 is not a SHA-256 value.')
+          print(f'Source SHA-256 gate: PASS ({expected})')
+          print(f'Source Git blob SHA-1: {actual}')
+          PY
+
+      - name: Validate requested release tag
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^install-wulf-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo 'Invalid release tag. Expected install-wulf-X.Y.Z.W.' >&2
+            exit 1
+          }
+
+      - name: Verify artifact checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-artifact
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            release-artifact/Winamp_InstallWulf-fixed.exe \
+            release-artifact/SHA256SUMS.txt \
+            release-artifact/BUILD-METADATA.json \
+            release-artifact/payload-manifest.json \
+            release-artifact/source-sha256.txt
