@@ -5,6 +5,8 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $SourceInstaller)) { throw "Source installer not found: $SourceInstaller" }
 $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
+if (-not $sevenZip -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $sevenZip = Get-Item 'C:\Program Files\7-Zip\7z.exe' }
+if (-not $sevenZip -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZip = Get-Item 'C:\Program Files (x86)\7-Zip\7z.exe' }
 if (-not $sevenZip) { throw '7z.exe is required on the build runner.' }
 Remove-Item -LiteralPath $PayloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $PayloadDirectory -Force | Out-Null
