@@ -52,7 +52,9 @@ class BuildConfigurationTests(unittest.TestCase):
         ):
             self.assertIn(stage, workflow)
 
-    def test_no_license_file_is_claimed_when_absent(self):
+    def test_documentation_does_not_claim_a_license_file_exists(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("The repository currently has **no `LICENSE` file**.", readme)
         self.assertFalse((ROOT / "LICENSE").exists())
 
 
