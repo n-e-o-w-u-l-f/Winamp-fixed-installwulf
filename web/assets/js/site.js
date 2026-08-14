@@ -1,1 +1,9 @@
-document.addEventListener('DOMContentLoaded',()=>{const els=document.querySelectorAll('.reveal');const io=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}}),{threshold:.12});els.forEach(e=>io.observe(e));document.addEventListener('mousemove',e=>{document.documentElement.style.setProperty('--mx',(e.clientX/window.innerWidth*100)+'%');document.documentElement.style.setProperty('--my',(e.clientY/window.innerHeight*100)+'%')});});
+$(function(){
+  $('.reveal').each(function(){ $(this).addClass('js-ready'); });
+  const reveal=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ $(entry.target).addClass('visible'); reveal.unobserve(entry.target); } }); },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){ reveal.observe(el); });
+  $(window).on('scroll',function(){
+    const y=window.scrollY||0;
+    $('.parallax').css('transform','translate3d(0,'+(y*.08)+'px,0)');
+  });
+});
