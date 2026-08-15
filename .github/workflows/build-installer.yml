@@ -11,14 +11,6 @@ on:
       - 'config/**'
       - 'tests/**'
       - '.github/workflows/build-installer.yml'
-  pull_request:
-    paths:
-      - 'winamp/winamp_latest_installer.exe'
-      - 'installer/**'
-      - 'scripts/**'
-      - 'config/**'
-      - 'tests/**'
-      - '.github/workflows/build-installer.yml'
   workflow_dispatch:
 
 permissions:
@@ -53,10 +45,12 @@ jobs:
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           if ($config.toolchain.nsis.version -ne $env:NSIS_VERSION) { throw 'NSIS version drift between workflow and build-config.json.' }
           if ($config.toolchain.sevenZip.version -ne $env:SEVENZIP_VERSION) { throw '7-Zip version drift between workflow and build-config.json.' }
+          if (-not $config.source.expectedSha256) { throw 'Source SHA-256 is not pinned.' }
           Write-Host "Installer version: $($config.installerVersion.fileVersion)"
           Write-Host "Display version: $($config.installerVersion.displayVersion)"
           Write-Host "Source path: $($config.source.path)"
           Write-Host "Source Git blob SHA-1: $($config.source.gitBlobSha1)"
+          Write-Host "Source SHA-256: $($config.source.expectedSha256)"
           Write-Host "Source size: $($config.source.sizeBytes) bytes"
 
       - name: Toolchain setup - download NSIS 3.12
