@@ -58,7 +58,7 @@ jobs:
         run: |
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           $setup = Join-Path $env:RUNNER_TEMP 'nsis-3.12-setup.exe'
-          Invoke-WebRequest -Uri $config.toolchain.nsis.url -OutFile $setup
+          curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.nsis.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.nsis.sha256.ToUpperInvariant()
           Write-Host "NSIS SHA256: $actual"
@@ -76,7 +76,7 @@ jobs:
         run: |
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           $setup = Join-Path $env:RUNNER_TEMP '7z2602-x64.exe'
-          Invoke-WebRequest -Uri $config.toolchain.sevenZip.url -OutFile $setup
+          curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.sevenZip.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.sevenZip.sha256.ToUpperInvariant()
           Write-Host "7-Zip installer SHA256: $actual"
