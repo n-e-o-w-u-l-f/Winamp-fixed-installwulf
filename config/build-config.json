@@ -28,8 +28,10 @@
     },
     "sevenZip": {
       "version": "26.02",
-      "url": "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-x64.exe",
-      "sha256": "6745FA76DC2EA031596D8678F6F6B99C3C1B435B4164A63485ADBBC7B8D82EF0"
+      "bootstrapUrl": "https://github.com/ip7z/7zip/releases/download/26.02/7zr.exe",
+      "bootstrapSha256": "56B8CC9F4971CEF253644FAFE54063ED7FDCA551D4DEE0F8C6BAA81B855ACD72",
+      "archiveUrl": "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z",
+      "archiveSha256": "081DF9E9311DFD9C9E0E98C1C80180B99BB51E4CB24156B5F3057FE3C259D70A"
     }
   }
 }
