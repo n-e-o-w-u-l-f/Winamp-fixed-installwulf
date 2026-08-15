@@ -35,7 +35,7 @@ env:
 jobs:
   build:
     name: Windows installer build
-    runs-on: windows-2025
+    runs-on: [self-hosted, windows, x64, winamp-build]
     timeout-minutes: 20
     steps:
       - name: Source validation - checkout
@@ -92,9 +92,7 @@ jobs:
           $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
           if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 7z.exe was not installed.' }
           $versionLine = & $sevenZip i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
-          if (-not $versionLine -or $versionLine.Line -notmatch [regex]::Escape($env:SEVENZIP_VERSION)) {
-            throw "7-Zip version mismatch. Expected $env:SEVENZIP_VERSION."
-          }
+          if (-not $versionLine -or $versionLine.Line -notmatch [regex]::Escape($env:SEVENZIP_VERSION)) { throw "7-Zip version mismatch. Expected $env:SEVENZIP_VERSION." }
           Write-Host "7-Zip: $($versionLine.Line.Trim())"
 
       - name: Payload extraction
