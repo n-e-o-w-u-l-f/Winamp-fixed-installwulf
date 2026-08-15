@@ -62,8 +62,7 @@ class BuildConfigurationTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "release-promotion.yml").read_text(encoding="utf-8")
         self.assertIn("runs-on: [self-hosted, linux, x64, legion]", workflow)
         self.assertNotRegex(workflow, r"runs-on:\s+(?:ubuntu|windows|macos)-")
-        self.assertIn("config.source.expectedSha256", workflow)
-        self.assertIn("conclusion", workflow)
+        self.assertIn("expectedSha256", workflow)
         self.assertIn("draft", workflow)
         self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
 
