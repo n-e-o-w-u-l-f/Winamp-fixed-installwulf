@@ -1,7 +1,9 @@
 param(
     [string]$SourceInstaller,
     [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json'),
-    [switch]$PayloadAlreadyExtracted
+    [switch]$PayloadAlreadyExtracted,
+    [string]$SevenZipPath = $null,
+    [string]$NsisPath = $null
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +24,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $root $SourceInstaller) -PathType Le
 }
 
 if (-not $PayloadAlreadyExtracted) {
-    & (Join-Path $PSScriptRoot 'extract-winamp.ps1') -SourceInstaller (Join-Path $root $SourceInstaller) -PayloadDirectory $payload -ConfigFile $ConfigFile
+    $extractArgs = @{
+        SourceInstaller = (Join-Path $root $SourceInstaller)
+        PayloadDirectory = $payload
+        ConfigFile = $ConfigFile
+    }
+    if ($SevenZipPath) { $extractArgs.SevenZipPath = $SevenZipPath }
+    & (Join-Path $PSScriptRoot 'extract-winamp.ps1') @extractArgs
 }
 
 if (-not (Test-Path -LiteralPath $payload -PathType Container)) {
@@ -38,14 +46,16 @@ foreach ($requiredFile in $config.payload.requiredFiles) {
 Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
-$makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
-if (-not (Test-Path -LiteralPath $makensis)) {
-    $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
-    if ($command) { $makensis = $command.Source }
+if (-not $NsisPath) {
+    $NsisPath = 'C:\Program Files (x86)\NSIS\makensis.exe'
+    if (-not (Test-Path -LiteralPath $NsisPath)) {
+        $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
+        if ($command) { $NsisPath = $command.Source }
+    }
 }
-if (-not $makensis -or -not (Test-Path -LiteralPath $makensis)) { throw 'NSIS makensis.exe was not found.' }
+if (-not $NsisPath -or -not (Test-Path -LiteralPath $NsisPath)) { throw 'NSIS makensis.exe was not found.' }
 
-$nsisVersion = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
+$nsisVersion = (& $NsisPath /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
 Write-Host "NSIS: $nsisVersion"
 if ($nsisVersion.TrimStart('v') -ne $config.toolchain.nsis.version) {
     throw "NSIS version mismatch. Expected $($config.toolchain.nsis.version), got $nsisVersion."
@@ -59,7 +69,7 @@ $versionInclude = Join-Path $root 'build\installer-version.nsh'
 
 Push-Location $root
 try {
-    & $makensis '/V4' 'installer\Install-Wulf.nsi'
+    & $NsisPath '/V4' 'installer\Install-Wulf.nsi'
     if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
     $built = Join-Path $root 'installer\Winamp_InstallWulf-fixed.exe'
     if (-not (Test-Path -LiteralPath $built)) { throw "Expected NSIS output was not created: $built" }
