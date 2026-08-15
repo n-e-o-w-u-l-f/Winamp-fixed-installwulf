@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$SourceInstaller,
     [Parameter(Mandatory = $true)][string]$PayloadDirectory,
-    [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json')
+    [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json'),
+    [string]$SevenZipPath = $null
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,24 +39,26 @@ if ($config.source.expectedSha256) {
 }
 Write-Host "Source Git blob SHA-1: $($config.source.gitBlobSha1)"
 
-$sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
-if ($sevenZip) { $sevenZipPath = $sevenZip.Source }
-if (-not $sevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files\7-Zip\7z.exe' }
-if (-not $sevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
-if (-not $sevenZipPath) { throw '7z.exe is required on the build runner.' }
+if (-not $SevenZipPath) {
+    $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
+    if ($sevenZip) { $SevenZipPath = $sevenZip.Source }
+}
+if (-not $SevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $SevenZipPath = 'C:\Program Files\7-Zip\7z.exe' }
+if (-not $SevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $SevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
+if (-not $SevenZipPath -or -not (Test-Path -LiteralPath $SevenZipPath -PathType Leaf)) { throw '7z.exe is required on the build runner.' }
 
-$sevenZipInfo = & $sevenZipPath i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
+$sevenZipInfo = & $SevenZipPath i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
 if (-not $sevenZipInfo) { throw 'Unable to determine 7-Zip version.' }
 Write-Host "7-Zip: $($sevenZipInfo.Line.Trim())"
 
-& $sevenZipPath t $SourceInstaller -y | Out-Host
+& $SevenZipPath t $SourceInstaller -y | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Source installer archive test failed: $LASTEXITCODE" }
 Write-Host 'Source archive validation: PASS'
 
 Remove-Item -LiteralPath $PayloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $PayloadDirectory -Force | Out-Null
 
-& $sevenZipPath x $SourceInstaller "-o$PayloadDirectory" -y | Out-Host
+& $SevenZipPath x $SourceInstaller "-o$PayloadDirectory" -y | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "7-Zip extraction failed with exit code $LASTEXITCODE" }
 
 foreach ($requiredFile in $config.payload.requiredFiles) {
