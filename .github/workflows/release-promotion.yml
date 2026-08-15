@@ -18,9 +18,13 @@ permissions:
 jobs:
   promote:
     name: Promote validated artifact
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, legion]
     timeout-minutes: 10
     steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - name: Validate build run and source gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,15 +36,11 @@ jobs:
           python - <<'PY' "$run_json"
           import json, sys
           run = json.loads(sys.argv[1])
-          if run.get("name") != "Build Install-Wulf":
-              raise SystemExit("Selected run is not the Install-Wulf build workflow.")
-          if run.get("event") != "push" or run.get("head_branch") != "main":
-              raise SystemExit("Release promotion requires a push build from main.")
-          if run.get("status") != "completed" or run.get("conclusion") != "success":
-              raise SystemExit("Selected build run is not successful.")
+          if run.get("name") != "Build Install-Wulf": raise SystemExit("Selected run is not the Install-Wulf build workflow.")
+          if run.get("event") != "push" or run.get("head_branch") != "main": raise SystemExit("Release promotion requires a push build from main.")
+          if run.get("status") != "completed" or run.get("conclusion") != "success": raise SystemExit("Selected build run is not successful.")
           print(f"Validated build run: {run['id']} @ {run['head_sha']}")
           PY
-
       - name: Download validated artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,7 +55,6 @@ jobs:
           test -s release-artifact/BUILD-METADATA.json
           test -s release-artifact/source-sha256.txt
           test -s release-artifact/payload-manifest.json
-
       - name: Enforce source reproducibility gate
         shell: bash
         run: |
@@ -66,36 +65,27 @@ jobs:
           config = json.loads(Path('config/build-config.json').read_text(encoding='utf-8'))
           metadata = json.loads(Path('release-artifact/BUILD-METADATA.json').read_text(encoding='utf-8-sig'))
           expected = config['source'].get('expectedSha256')
-          if not expected or expected == 'null' or not re.fullmatch(r'[0-9a-fA-F]{64}', expected):
-              raise SystemExit('Release blocked: config.source.expectedSha256 is not a pinned SHA-256.')
+          if not expected or expected == 'null' or not re.fullmatch(r'[0-9a-fA-F]{64}', expected): raise SystemExit('Release blocked: config.source.expectedSha256 is not a pinned SHA-256.')
           recorded = Path('release-artifact/source-sha256.txt').read_text(encoding='utf-8').strip().split()[0]
-          if recorded.lower() != expected.lower():
-              raise SystemExit(f'Release blocked: source SHA-256 mismatch. Expected {expected}, build recorded {recorded}.')
+          if recorded.lower() != expected.lower(): raise SystemExit(f'Release blocked: source SHA-256 mismatch. Expected {expected}, build recorded {recorded}.')
           metadata_source = metadata.get('source', {})
-          if metadata_source.get('expectedSha256', '').lower() != expected.lower():
-              raise SystemExit('Release blocked: BUILD-METADATA source identity differs from repository configuration.')
+          if metadata_source.get('expectedSha256', '').lower() != expected.lower(): raise SystemExit('Release blocked: BUILD-METADATA source identity differs from repository configuration.')
           print(f'Source SHA-256 gate: PASS ({recorded})')
           print(f"Source Git blob SHA-1: {metadata_source.get('gitBlobSha1')}")
           PY
-
       - name: Validate requested release tag
         env:
           TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^install-wulf-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo 'Invalid release tag. Expected install-wulf-X.Y.Z.W.' >&2
-            exit 1
-          }
-
+          [[ "$TAG" =~ ^install-wulf-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag. Expected install-wulf-X.Y.Z.W.' >&2; exit 1; }
       - name: Verify artifact checksum
         shell: bash
         run: |
           set -euo pipefail
           cd release-artifact
           sha256sum -c SHA256SUMS.txt
-
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,12 +93,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --generate-notes \
-            release-artifact/Winamp_InstallWulf-fixed.exe \
-            release-artifact/SHA256SUMS.txt \
-            release-artifact/BUILD-METADATA.json \
-            release-artifact/payload-manifest.json \
-            release-artifact/source-sha256.txt
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes release-artifact/Winamp_InstallWulf-fixed.exe release-artifact/SHA256SUMS.txt release-artifact/BUILD-METADATA.json release-artifact/payload-manifest.json release-artifact/source-sha256.txt
