@@ -23,7 +23,7 @@
   "toolchain": {
     "nsis": {
       "version": "3.12",
-      "url": "https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/nsis-3.12-setup.exe/download",
+      "url": "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.12/nsis-3.12-setup.exe",
       "sha256": "3BC2B06253A7E4957111BE152AC6A536E0C7478A706E19DA814038DB5D706495"
     },
     "sevenZip": {
