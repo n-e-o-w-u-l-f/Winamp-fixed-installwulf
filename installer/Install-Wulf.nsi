@@ -11,7 +11,9 @@ ShowInstDetails show
 VIProductVersion "${INSTALL_WULF_FILE_VERSION}"
 VIAddVersionKey /LANG=1033 "ProductName" "Install-Wulf"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${INSTALL_WULF_DISPLAY_VERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${INSTALL_WULF_FILE_VERSION}"
 VIAddVersionKey /LANG=1033 "FileDescription" "Winamp Install-Wulf Installer"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 1997-2026 Winamp SA"
 
 Section "Winamp" SEC01
   SectionIn RO

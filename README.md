@@ -54,9 +54,12 @@ The checked-in source installer is:
 winamp/winamp_latest_installer.exe
 Git blob SHA-1: 6c3aa2dbf463daae1496cfb1cc40d2c9447153ed
 Size: 13,034,408 bytes
+SHA-256: fa09d24d7481dbdfc1cff6aaa92d2aec908e037a22a02346f6feeee5d6ba688e
+Payload `winamp.exe` SHA-256: addf561fcdc496c1318ddc3586352aa7f6c1feb684a9e8ffa285409beac5b446
+Payload Winamp FileVersion/ProductVersion: 5,9,2,10042
 ```
 
-CI calculates the source SHA-256 on every build and publishes it as `source-sha256.txt`. The current repository does **not** yet contain an expected source SHA-256 value. Therefore the project does not claim full source reproducibility yet. Before a release can be promoted, the calculated SHA-256 must be recorded in `config/build-config.json` as `source.expectedSha256`.
+The source SHA-256 is pinned in `config/build-config.json` and is checked during extraction. A release still requires a successful Windows CI build and the separate release-promotion gate.
 
 ## Toolchain
 

@@ -47,14 +47,14 @@ if (-not $makensis -or -not (Test-Path -LiteralPath $makensis)) { throw 'NSIS ma
 
 $nsisVersion = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
 Write-Host "NSIS: $nsisVersion"
-if ($nsisVersion -ne $config.toolchain.nsis.version) {
+if ($nsisVersion.TrimStart('v') -ne $config.toolchain.nsis.version) {
     throw "NSIS version mismatch. Expected $($config.toolchain.nsis.version), got $nsisVersion."
 }
 
 $versionInclude = Join-Path $root 'build\installer-version.nsh'
 @(
-    "!define INSTALL_WULF_FILE_VERSION \"$($config.installerVersion.fileVersion)\""
-    "!define INSTALL_WULF_DISPLAY_VERSION \"$($config.installerVersion.displayVersion)\""
+    "!define INSTALL_WULF_FILE_VERSION " + [char]34 + $config.installerVersion.fileVersion + [char]34
+    "!define INSTALL_WULF_DISPLAY_VERSION " + [char]34 + $config.installerVersion.displayVersion + [char]34
 ) | Set-Content -LiteralPath $versionInclude -Encoding ascii
 
 Push-Location $root

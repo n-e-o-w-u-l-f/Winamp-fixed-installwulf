@@ -12,7 +12,7 @@
     "path": "winamp/winamp_latest_installer.exe",
     "gitBlobSha1": "6c3aa2dbf463daae1496cfb1cc40d2c9447153ed",
     "sizeBytes": 13034408,
-    "expectedSha256": null,
+    "expectedSha256": "fa09d24d7481dbdfc1cff6aaa92d2aec908e037a22a02346f6feeee5d6ba688e",
     "requireExpectedSha256ForRelease": true
   },
   "payload": {
