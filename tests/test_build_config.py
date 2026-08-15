@@ -60,7 +60,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, linux, x64, legion]", workflow)
         self.assertNotRegex(workflow, r"runs-on:\s+(?:ubuntu|windows|macos)-")
         self.assertIn("config.source.expectedSha256", workflow)
-        self.assertIn("conclusion")
+        self.assertIn("conclusion", workflow)
         self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
 
     def test_documentation_does_not_claim_a_license_file_exists(self):
