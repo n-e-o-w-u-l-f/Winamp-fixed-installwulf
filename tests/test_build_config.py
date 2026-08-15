@@ -24,6 +24,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertTrue(source_path.is_file())
         self.assertEqual(source_path.stat().st_size, source["sizeBytes"])
         self.assertRegex(source["gitBlobSha1"], r"^[0-9a-f]{40}$")
+        self.assertRegex(source.get("expectedSha256", ""), r"^[0-9a-f]{64}$")
 
     def test_toolchain_hashes_are_pinned(self):
         for tool_name in ("nsis", "sevenZip"):
@@ -37,7 +38,9 @@ class BuildConfigurationTests(unittest.TestCase):
 
     def test_workflow_is_pinned_and_staged(self):
         workflow = (ROOT / ".github" / "workflows" / "build-installer.yml").read_text(encoding="utf-8")
-        self.assertIn("runs-on: windows-2025", workflow)
+        self.assertIn("runs-on: [self-hosted, windows, x64, winamp-build]", workflow)
+        self.assertNotIn("runs-on: windows-2025", workflow)
+        self.assertNotIn("pull_request:", workflow)
         self.assertIn("actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683", workflow)
         self.assertIn("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02", workflow)
         for stage in (
@@ -51,6 +54,14 @@ class BuildConfigurationTests(unittest.TestCase):
             "Artifact upload",
         ):
             self.assertIn(stage, workflow)
+
+    def test_release_promotion_uses_linux_self_hosted_runner(self):
+        workflow = (ROOT / ".github" / "workflows" / "release-promotion.yml").read_text(encoding="utf-8")
+        self.assertIn("runs-on: [self-hosted, linux, x64, legion]", workflow)
+        self.assertNotRegex(workflow, r"runs-on:\s+(?:ubuntu|windows|macos)-")
+        self.assertIn("config.source.expectedSha256", workflow)
+        self.assertIn("conclusion")
+        self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
 
     def test_documentation_does_not_claim_a_license_file_exists(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
