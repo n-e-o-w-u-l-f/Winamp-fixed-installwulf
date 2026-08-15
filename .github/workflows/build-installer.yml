@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: install-wulf-build-${{ github.ref }}
@@ -26,9 +26,10 @@ env:
 
 jobs:
   build:
+    if: ${{ github.ref == 'refs/heads/main' }}
     name: Windows installer build
     runs-on: [self-hosted, windows, x64, winamp-build]
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Source validation - checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -48,7 +49,6 @@ jobs:
           if (-not $config.source.expectedSha256) { throw 'Source SHA-256 is not pinned.' }
           Write-Host "Installer version: $($config.installerVersion.fileVersion)"
           Write-Host "Display version: $($config.installerVersion.displayVersion)"
-          Write-Host "Source path: $($config.source.path)"
           Write-Host "Source Git blob SHA-1: $($config.source.gitBlobSha1)"
           Write-Host "Source SHA-256: $($config.source.expectedSha256)"
           Write-Host "Source size: $($config.source.sizeBytes) bytes"
@@ -64,14 +64,14 @@ jobs:
           curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.nsis.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.nsis.sha256.ToUpperInvariant()
-          Write-Host "NSIS SHA256: $actual"
           if ($actual -ne $expected) { throw "NSIS SHA256 mismatch. Expected $expected, got $actual." }
           $p = Start-Process -FilePath $setup -ArgumentList '/S',("/D=" + $nsisDir) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "NSIS setup failed: $($p.ExitCode)" }
           $makensis = Join-Path $nsisDir 'makensis.exe'
-          if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed in the isolated tool directory.' }
+          if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 was not installed in the isolated tool directory.' }
           $version = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
           if ($version.TrimStart('v') -ne $env:NSIS_VERSION) { throw "NSIS version mismatch. Expected $env:NSIS_VERSION, got $version." }
+          Write-Host "NSIS SHA256: $actual"
           Write-Host "NSIS: $version"
           "NSIS_PATH=$makensis" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
@@ -86,14 +86,14 @@ jobs:
           curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.sevenZip.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.sevenZip.sha256.ToUpperInvariant()
-          Write-Host "7-Zip installer SHA256: $actual"
           if ($actual -ne $expected) { throw "7-Zip SHA256 mismatch. Expected $expected, got $actual." }
           $p = Start-Process -FilePath $setup -ArgumentList '/S',("/D=" + $sevenZipDir) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "7-Zip setup failed: $($p.ExitCode)" }
           $sevenZip = Join-Path $sevenZipDir '7z.exe'
-          if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 7z.exe was not installed in the isolated tool directory.' }
+          if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 was not installed in the isolated tool directory.' }
           $versionLine = & $sevenZip i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
           if (-not $versionLine -or $versionLine.Line -notmatch [regex]::Escape($env:SEVENZIP_VERSION)) { throw "7-Zip version mismatch. Expected $env:SEVENZIP_VERSION." }
+          Write-Host "7-Zip SHA256: $actual"
           Write-Host "7-Zip: $($versionLine.Line.Trim())"
           "SEVENZIP_PATH=$sevenZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
@@ -109,7 +109,6 @@ jobs:
           if (-not (Test-Path -LiteralPath '.\build\payload-manifest.json' -PathType Leaf)) { throw 'Payload manifest was not generated.' }
           if (-not (Test-Path -LiteralPath '.\build\source-sha256.txt' -PathType Leaf)) { throw 'Source SHA-256 record was not generated.' }
           Get-Content -LiteralPath '.\build\source-sha256.txt'
-          Get-Content -LiteralPath '.\build\payload-manifest.json' | Select-Object -First 20
 
       - name: Installer build
         shell: powershell
@@ -129,14 +128,17 @@ jobs:
           "$($hash.Hash.ToLowerInvariant())  Winamp_InstallWulf-fixed.exe" | Set-Content -LiteralPath '.\build\output\SHA256SUMS.txt' -Encoding ascii
           Write-Host "Installer SHA256: $($hash.Hash)"
 
-      - name: Artifact upload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Winamp-InstallWulf-fixed
-          path: |
-            build/output/Winamp_InstallWulf-fixed.exe
-            build/output/SHA256SUMS.txt
-            build/output/BUILD-METADATA.json
-            build/payload-manifest.json
-            build/source-sha256.txt
-          if-no-files-found: error
+      - name: Stage validated release assets
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $stagingTag = "install-wulf-build-$env:GITHUB_RUN_ID"
+          gh release create $stagingTag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Install-Wulf validated build $env:GITHUB_RUN_ID" --notes "Automated draft staging release. It is not a public release. Promotion requires a successful main build and independent validation on the Linux release runner." --draft --verify-tag=false `
+            '.\build\output\Winamp_InstallWulf-fixed.exe' `
+            '.\build\output\SHA256SUMS.txt' `
+            '.\build\output\BUILD-METADATA.json' `
+            '.\build\payload-manifest.json' `
+            '.\build\source-sha256.txt'
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create staging release: $LASTEXITCODE" }
+          Write-Host "Staging release: $stagingTag"
