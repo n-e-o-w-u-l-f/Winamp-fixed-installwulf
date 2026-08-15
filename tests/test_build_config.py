@@ -38,11 +38,14 @@ class BuildConfigurationTests(unittest.TestCase):
 
     def test_workflow_is_pinned_and_staged(self):
         workflow = (ROOT / ".github" / "workflows" / "build-installer.yml").read_text(encoding="utf-8")
+        self.assertIn("if: ${{ github.ref == 'refs/heads/main' }}", workflow)
         self.assertIn("runs-on: [self-hosted, windows, x64, winamp-build]", workflow)
         self.assertNotIn("runs-on: windows-2025", workflow)
         self.assertNotIn("pull_request:", workflow)
+        self.assertNotIn("upload-artifact", workflow)
+        self.assertIn("gh release create", workflow)
+        self.assertIn("--draft", workflow)
         self.assertIn("actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683", workflow)
-        self.assertIn("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02", workflow)
         for stage in (
             "Source validation",
             "Toolchain setup",
@@ -51,7 +54,7 @@ class BuildConfigurationTests(unittest.TestCase):
             "Installer build",
             "Installer validation",
             "SHA-256",
-            "Artifact upload",
+            "Stage validated release assets",
         ):
             self.assertIn(stage, workflow)
 
@@ -61,6 +64,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertNotRegex(workflow, r"runs-on:\s+(?:ubuntu|windows|macos)-")
         self.assertIn("config.source.expectedSha256", workflow)
         self.assertIn("conclusion", workflow)
+        self.assertIn("draft", workflow)
         self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
 
     def test_documentation_does_not_claim_a_license_file_exists(self):
