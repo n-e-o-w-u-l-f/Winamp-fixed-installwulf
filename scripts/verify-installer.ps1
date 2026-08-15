@@ -1,8 +1,10 @@
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
-    [string]$ConfigFile = (Join-Path $PSScriptRoot '..\config\build-config.json'),
+    [string]$ConfigFile = $null,
     [string]$PayloadDirectory
 )
+
+if ([string]::IsNullOrWhiteSpace($ConfigFile)) { $ConfigFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) '..\config\build-config.json' }
 
 $ErrorActionPreference = 'Stop'
 
