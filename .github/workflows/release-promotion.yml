@@ -1,0 +1,132 @@
+name: Promote validated Install-Wulf draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Successful Build Install-Wulf workflow run ID on main'
+        required: true
+        type: string
+      tag:
+        description: 'Final release tag, e.g. install-wulf-1.33.7.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    name: Promote validated draft
+    runs-on: [self-hosted, linux, x64, legion]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Validate successful main build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
+          python - <<'PY' "$run_json"
+          import json, sys
+          run = json.loads(sys.argv[1])
+          if run.get("name") != "Build Install-Wulf": raise SystemExit("Selected run is not the Install-Wulf build workflow.")
+          if run.get("event") != "push" or run.get("head_branch") != "main": raise SystemExit("Release promotion requires a push build from main.")
+          if run.get("status") != "completed" or run.get("conclusion") != "success": raise SystemExit("Selected build run is not successful.")
+          print(f"Validated build run: {run['id']} @ {run['head_sha']}")
+          print(run['head_sha'], file=open('/tmp/build-head-sha', 'w', encoding='utf-8'))
+          PY
+
+      - name: Locate and validate staging release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING_TAG="install-wulf-build-${RUN_ID}"
+          echo "STAGING_TAG=$STAGING_TAG" >> "$GITHUB_ENV"
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${STAGING_TAG}")"
+          python - <<'PY' "$release_json"
+          import json, sys
+          r = json.loads(sys.argv[1])
+          if not r.get('draft'): raise SystemExit('Release gate blocked: staging release is not a draft.')
+          print(f"Staging release validated: {r['tag_name']}")
+          PY
+
+      - name: Download staging release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifact
+          gh release download "$STAGING_TAG" --repo "$GITHUB_REPOSITORY" --dir release-artifact --pattern 'Winamp_InstallWulf-fixed.exe' --pattern 'SHA256SUMS.txt' --pattern 'BUILD-METADATA.json' --pattern 'payload-manifest.json' --pattern 'source-sha256.txt'
+          test -s release-artifact/Winamp_InstallWulf-fixed.exe
+          test -s release-artifact/SHA256SUMS.txt
+          test -s release-artifact/BUILD-METADATA.json
+          test -s release-artifact/payload-manifest.json
+          test -s release-artifact/source-sha256.txt
+
+      - name: Enforce source reproducibility gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, re
+          from pathlib import Path
+          config = json.loads(Path('config/build-config.json').read_text(encoding='utf-8'))
+          metadata = json.loads(Path('release-artifact/BUILD-METADATA.json').read_text(encoding='utf-8-sig'))
+          expected = config['source'].get('expectedSha256')
+          if not expected or not re.fullmatch(r'[0-9a-fA-F]{64}', expected): raise SystemExit('Release blocked: source expected SHA-256 is not pinned.')
+          recorded = Path('release-artifact/source-sha256.txt').read_text(encoding='utf-8').strip().split()[0]
+          if recorded.lower() != expected.lower(): raise SystemExit(f'Release blocked: source SHA-256 mismatch. Expected {expected}, build recorded {recorded}.')
+          metadata_source = metadata.get('source', {})
+          if metadata_source.get('expectedSha256', '').lower() != expected.lower(): raise SystemExit('Release blocked: BUILD-METADATA source identity differs from repository configuration.')
+          print(f'Source SHA-256 gate: PASS ({recorded})')
+          PY
+
+      - name: Validate artifact checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-artifact
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Validate requested release tag
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^install-wulf-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag. Expected install-wulf-X.Y.Z.W.' >&2; exit 1; }
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release/tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+      - name: Publish final release from validated staging assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(cat /tmp/build-head-sha)"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$HEAD_SHA" --title "$TAG" --generate-notes release-artifact/Winamp_InstallWulf-fixed.exe release-artifact/SHA256SUMS.txt release-artifact/BUILD-METADATA.json release-artifact/payload-manifest.json release-artifact/source-sha256.txt
+
+      - name: Remove staging draft after successful promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release delete "$STAGING_TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes

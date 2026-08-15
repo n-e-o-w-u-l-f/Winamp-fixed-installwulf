@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "Install-Wulf",
+    "installerFileName": "Winamp_InstallWulf-fixed.exe"
+  },
+  "installerVersion": {
+    "fileVersion": "1.33.7.0",
+    "displayVersion": "1,33,7a"
+  },
+  "source": {
+    "path": "winamp/winamp_latest_installer.exe",
+    "gitBlobSha1": "6c3aa2dbf463daae1496cfb1cc40d2c9447153ed",
+    "sizeBytes": 13034408,
+    "expectedSha256": "fa09d24d7481dbdfc1cff6aaa92d2aec908e037a22a02346f6feeee5d6ba688e",
+    "requireExpectedSha256ForRelease": true
+  },
+  "payload": {
+    "requiredFiles": [
+      "winamp.exe"
+    ]
+  },
+  "toolchain": {
+    "nsis": {
+      "version": "3.12",
+      "url": "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.12/nsis-3.12-setup.exe",
+      "sha256": "3BC2B06253A7E4957111BE152AC6A536E0C7478A706E19DA814038DB5D706495"
+    },
+    "sevenZip": {
+      "version": "26.02",
+      "url": "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-x64.exe",
+      "sha256": "6745FA76DC2EA031596D8678F6F6B99C3C1B435B4164A63485ADBBC7B8D82EF0"
+    }
+  }
+}

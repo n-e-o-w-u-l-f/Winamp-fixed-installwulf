@@ -1,9 +1,27 @@
-$(function(){
-  $('.reveal').each(function(){ $(this).addClass('js-ready'); });
-  const reveal=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ $(entry.target).addClass('visible'); reveal.unobserve(entry.target); } }); },{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el){ reveal.observe(el); });
-  $(window).on('scroll',function(){
-    const y=window.scrollY||0;
-    $('.parallax').css('transform','translate3d(0,'+(y*.08)+'px,0)');
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.reveal').forEach((element) => {
+    element.classList.add('js-ready');
   });
+
+  const reveal = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.reveal').forEach((element) => reveal.observe(element));
+
+  const parallaxElements = document.querySelectorAll('.parallax');
+  const updateParallax = () => {
+    const y = window.scrollY || 0;
+    parallaxElements.forEach((element) => {
+      element.style.transform = `translate3d(0, ${y * 0.08}px, 0)`;
+    });
+  };
+
+  window.addEventListener('scroll', updateParallax, { passive: true });
+  updateParallax();
 });
