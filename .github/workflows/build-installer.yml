@@ -58,42 +58,50 @@ jobs:
         run: |
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           $setup = Join-Path $env:RUNNER_TEMP 'nsis-3.12-setup.exe'
+          $nsisDir = Join-Path $env:RUNNER_TEMP 'nsis-3.12'
+          Remove-Item -LiteralPath $nsisDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $nsisDir -Force | Out-Null
           curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.nsis.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.nsis.sha256.ToUpperInvariant()
           Write-Host "NSIS SHA256: $actual"
           if ($actual -ne $expected) { throw "NSIS SHA256 mismatch. Expected $expected, got $actual." }
-          $p = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          $p = Start-Process -FilePath $setup -ArgumentList '/S',("/D=" + $nsisDir) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "NSIS setup failed: $($p.ExitCode)" }
-          $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
-          if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed.' }
+          $makensis = Join-Path $nsisDir 'makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed in the isolated tool directory.' }
           $version = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
           if ($version.TrimStart('v') -ne $env:NSIS_VERSION) { throw "NSIS version mismatch. Expected $env:NSIS_VERSION, got $version." }
           Write-Host "NSIS: $version"
+          "NSIS_PATH=$makensis" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Toolchain setup - download 7-Zip 26.02
         shell: powershell
         run: |
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
           $setup = Join-Path $env:RUNNER_TEMP '7z2602-x64.exe'
+          $sevenZipDir = Join-Path $env:RUNNER_TEMP '7zip-26.02'
+          Remove-Item -LiteralPath $sevenZipDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $sevenZipDir -Force | Out-Null
           curl.exe --fail --location --retry 3 --retry-delay 1 --output $setup $config.toolchain.sevenZip.url
           $actual = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToUpperInvariant()
           $expected = $config.toolchain.sevenZip.sha256.ToUpperInvariant()
           Write-Host "7-Zip installer SHA256: $actual"
           if ($actual -ne $expected) { throw "7-Zip SHA256 mismatch. Expected $expected, got $actual." }
-          $p = Start-Process -FilePath $setup -ArgumentList '/S','/D=C:\Program Files\7-Zip' -Wait -PassThru
+          $p = Start-Process -FilePath $setup -ArgumentList '/S',("/D=" + $sevenZipDir) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "7-Zip setup failed: $($p.ExitCode)" }
-          $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
-          if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 7z.exe was not installed.' }
+          $sevenZip = Join-Path $sevenZipDir '7z.exe'
+          if (-not (Test-Path -LiteralPath $sevenZip)) { throw '7-Zip 26.02 7z.exe was not installed in the isolated tool directory.' }
           $versionLine = & $sevenZip i 2>&1 | Select-String -Pattern '^7-Zip ' | Select-Object -First 1
           if (-not $versionLine -or $versionLine.Line -notmatch [regex]::Escape($env:SEVENZIP_VERSION)) { throw "7-Zip version mismatch. Expected $env:SEVENZIP_VERSION." }
           Write-Host "7-Zip: $($versionLine.Line.Trim())"
+          "SEVENZIP_PATH=$sevenZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Payload extraction
         shell: powershell
         run: |
           $config = Get-Content -LiteralPath '.\config\build-config.json' -Raw | ConvertFrom-Json
-          & '.\scripts\extract-winamp.ps1' -SourceInstaller $config.source.path -PayloadDirectory '.\build\payload' -ConfigFile '.\config\build-config.json'
+          & '.\scripts\extract-winamp.ps1' -SourceInstaller $config.source.path -PayloadDirectory '.\build\payload' -ConfigFile '.\config\build-config.json' -SevenZipPath $env:SEVENZIP_PATH
 
       - name: Payload validation
         shell: powershell
@@ -106,12 +114,12 @@ jobs:
       - name: Installer build
         shell: powershell
         run: |
-          & '.\scripts\build-installer.ps1' -ConfigFile '.\config\build-config.json' -PayloadAlreadyExtracted
+          & '.\scripts\build-installer.ps1' -ConfigFile '.\config\build-config.json' -PayloadAlreadyExtracted -SevenZipPath $env:SEVENZIP_PATH -NsisPath $env:NSIS_PATH
 
       - name: Installer validation
         shell: powershell
         run: |
-          & '.\scripts\verify-installer.ps1' -Installer '.\build\output\Winamp_InstallWulf-fixed.exe' -ConfigFile '.\config\build-config.json' -PayloadDirectory '.\build\payload'
+          & '.\scripts\verify-installer.ps1' -Installer '.\build\output\Winamp_InstallWulf-fixed.exe' -ConfigFile '.\config\build-config.json' -PayloadDirectory '.\build\payload' -SevenZipPath $env:SEVENZIP_PATH
 
       - name: SHA-256
         shell: powershell
