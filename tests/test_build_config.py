@@ -27,11 +27,17 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertRegex(source.get("expectedSha256", ""), r"^[0-9a-f]{64}$")
 
     def test_toolchain_hashes_are_pinned(self):
-        for tool_name in ("nsis", "sevenZip"):
-            tool = self.config["toolchain"][tool_name]
-            self.assertRegex(tool["sha256"], r"^[0-9A-Fa-f]{64}$")
-            self.assertRegex(tool["version"], r"^\d+\.\d+(?:\.\d+)?$")
-            self.assertTrue(tool["url"].startswith("https://"))
+        nsis = self.config["toolchain"]["nsis"]
+        self.assertRegex(nsis["sha256"], r"^[0-9A-Fa-f]{64}$")
+        self.assertRegex(nsis["version"], r"^\d+\.\d+(?:\.\d+)?$")
+        self.assertTrue(nsis["url"].startswith("https://"))
+
+        seven_zip = self.config["toolchain"]["sevenZip"]
+        self.assertRegex(seven_zip["bootstrapSha256"], r"^[0-9A-Fa-f]{64}$")
+        self.assertRegex(seven_zip["archiveSha256"], r"^[0-9A-Fa-f]{64}$")
+        self.assertRegex(seven_zip["version"], r"^\d+\.\d+(?:\.\d+)?$")
+        self.assertTrue(seven_zip["bootstrapUrl"].startswith("https://"))
+        self.assertTrue(seven_zip["archiveUrl"].startswith("https://"))
 
     def test_required_payload_files(self):
         self.assertIn("winamp.exe", self.config["payload"]["requiredFiles"])
