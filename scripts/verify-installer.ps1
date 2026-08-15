@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
     [string]$ConfigFile = $null,
-    [string]$PayloadDirectory
+    [string]$PayloadDirectory,
+    [string]$SevenZipPath = $null
 )
 
 if ([string]::IsNullOrWhiteSpace($ConfigFile)) { $ConfigFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) '..\config\build-config.json' }
@@ -73,13 +74,15 @@ if ($PayloadDirectory) {
     Write-Host 'Payload validation: PASS'
 }
 
-$sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
-if ($sevenZip) { $sevenZipPath = $sevenZip.Source }
-if (-not $sevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files\7-Zip\7z.exe' }
-if (-not $sevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $sevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
-if (-not $sevenZipPath) { throw '7z.exe is required for installer structural validation.' }
+if (-not $SevenZipPath) {
+    $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
+    if ($sevenZip) { $SevenZipPath = $sevenZip.Source }
+}
+if (-not $SevenZipPath -and (Test-Path 'C:\Program Files\7-Zip\7z.exe')) { $SevenZipPath = 'C:\Program Files\7-Zip\7z.exe' }
+if (-not $SevenZipPath -and (Test-Path 'C:\Program Files (x86)\7-Zip\7z.exe')) { $SevenZipPath = 'C:\Program Files (x86)\7-Zip\7z.exe' }
+if (-not $SevenZipPath -or -not (Test-Path -LiteralPath $SevenZipPath -PathType Leaf)) { throw '7z.exe is required for installer structural validation.' }
 
-$archiveTest = & $sevenZipPath t $item.FullName -y 2>&1
+$archiveTest = & $SevenZipPath t $item.FullName -y 2>&1
 $archiveTest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "7-Zip structural test failed: $LASTEXITCODE" }
 Write-Host 'Installer archive/SFX structural validation: PASS'
