@@ -74,7 +74,7 @@ jobs:
           $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
           if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS 3.12 makensis.exe was not installed.' }
           $version = (& $makensis /VERSION 2>&1 | Select-Object -Last 1).ToString().Trim()
-          if ($version -ne $env:NSIS_VERSION) { throw "NSIS version mismatch. Expected $env:NSIS_VERSION, got $version." }
+          if ($version.TrimStart('v') -ne $env:NSIS_VERSION) { throw "NSIS version mismatch. Expected $env:NSIS_VERSION, got $version." }
           Write-Host "NSIS: $version"
 
       - name: Toolchain setup - download 7-Zip 26.02
